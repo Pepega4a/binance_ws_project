@@ -1,0 +1,46 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_DB: binance_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d binance_db"]
+      interval: 5s
+      retries: 5
+
+  web:
+    build: .
+    command: sh -c "sleep 5 && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    environment:
+      - DOCKERIZED=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ws:
+    build: .
+    command: sh -c "sleep 5 && python -m daphne -b 0.0.0.0 -p 8001 config.asgi:application"
+    environment:
+      - DOCKERIZED=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+    ports:
+      - "8001:8001"
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
